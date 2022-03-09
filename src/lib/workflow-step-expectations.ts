@@ -1,13 +1,19 @@
 import { TestScheduler } from "rxjs/testing";
-
-import { busy, idle } from "@cloudextend/common/core";
-import { RxEvent } from "@cloudextend/common/events";
-import { WorkflowContext, WorkflowStep } from "@cloudextend/common/workflows";
+import { RxEvent } from "@cloudextend/contrib/events";
+import {
+    busy,
+    idle,
+    WorkflowContext,
+    WorkflowStep,
+} from "@cloudextend/contrib/workflows";
 
 export class WorkflowStepExpectations<
     T extends WorkflowContext = WorkflowContext
 > {
-    constructor(private readonly step: WorkflowStep<T>) {}
+    constructor(
+        private readonly step: WorkflowStep<T>,
+        private readonly dependencies: any[] = []
+    ) {}
 
     private readonly testScheduler = new TestScheduler((actual, expected) =>
         expect(actual).toEqual(expected)
@@ -18,10 +24,10 @@ export class WorkflowStepExpectations<
         done: jest.DoneCallback,
         context?: T
     ) {
-        const testContext = context ?? ({ workflowName: "UT" } as T);
+        const testContext = context ?? ({ workflowName: "UT" } as unknown as T);
 
         const emittedEvents: RxEvent[] = [];
-        this.step.activate(testContext).subscribe({
+        this.step.activate(testContext, ...this.dependencies).subscribe({
             next: event => emittedEvents.push(event),
             error: done,
             complete: () => {
@@ -29,7 +35,7 @@ export class WorkflowStepExpectations<
                     assertions(emittedEvents);
                     done();
                 } catch (e) {
-                    done(e);
+                    done(e as unknown as string | { message: string });
                 }
             },
         });
@@ -57,10 +63,10 @@ export class WorkflowStepExpectations<
         done: jest.DoneCallback,
         context?: T
     ) {
-        const testContext = context ?? ({ workflowName: "UT" } as T);
+        const testContext = context ?? ({ workflowName: "UT" } as unknown as T);
 
         const emittedEvents: RxEvent[] = [];
-        this.step.activate(testContext).subscribe({
+        this.step.activate(testContext, ...this.dependencies).subscribe({
             next: event => emittedEvents.push(event),
             error: done,
             complete: () => {
@@ -69,7 +75,7 @@ export class WorkflowStepExpectations<
                     assertions(emittedEvents[0]);
                     done();
                 } catch (e) {
-                    done(e);
+                    done(e as unknown as string | { message: string });
                 }
             },
         });
@@ -89,13 +95,12 @@ export class WorkflowStepExpectations<
 
         const expectedMarbles = `(${theMarbles}|)`;
 
-        const testContext = context ?? ({ workflowName: "UT" } as T);
+        const testContext = context ?? ({ workflowName: "UT" } as unknown as T);
 
         this.testScheduler.run(({ expectObservable }) => {
-            expectObservable(this.step.activate(testContext)).toBe(
-                expectedMarbles,
-                expectedEvents
-            );
+            expectObservable(
+                this.step.activate(testContext, ...this.dependencies)
+            ).toBe(expectedMarbles, expectedEvents);
         });
     }
 }
