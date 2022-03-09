@@ -23,13 +23,13 @@ export class WorkflowStepExpectations<
         const emittedEvents: RxEvent[] = [];
         this.step.activate(testContext).subscribe({
             next: event => emittedEvents.push(event),
-            error: done.fail,
+            error: done,
             complete: () => {
                 try {
                     assertions(emittedEvents);
                     done();
                 } catch (e) {
-                    done.fail(e);
+                    done(e);
                 }
             },
         });
@@ -62,14 +62,14 @@ export class WorkflowStepExpectations<
         const emittedEvents: RxEvent[] = [];
         this.step.activate(testContext).subscribe({
             next: event => emittedEvents.push(event),
-            error: done.fail,
+            error: done,
             complete: () => {
                 try {
                     expect(emittedEvents).toHaveLength(1);
                     assertions(emittedEvents[0]);
                     done();
                 } catch (e) {
-                    done.fail(e);
+                    done(e);
                 }
             },
         });
