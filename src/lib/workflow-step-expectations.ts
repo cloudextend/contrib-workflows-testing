@@ -9,6 +9,7 @@ export class WorkflowStepExpectations<
 > {
     constructor(
         private readonly step: WorkflowStep<T>,
+        private readonly context?: Partial<T>,
         private readonly dependencies: any[] = []
     ) {}
 
@@ -18,23 +19,35 @@ export class WorkflowStepExpectations<
 
     public toCompleteAnd(
         assertions: (returnedEvents: RxEvent[]) => void,
-        done: jest.DoneCallback,
-        context?: T
+        done: jest.DoneCallback
     ) {
-        const testContext = context ?? ({ workflowName: "UT" } as T);
+        const testContext: T =
+            (this.context as T) || ({ workflowName: "UT" } as T);
 
         const emittedEvents: RxEvent[] = [];
         this.step.activate(testContext, ...this.dependencies).subscribe({
             next: event => emittedEvents.push(event),
-            error: done.fail,
+            error: done,
             complete: () => {
                 try {
                     assertions(emittedEvents);
                     done();
                 } catch (e) {
-                    done.fail(e as unknown as string | { message: string });
+                    done(e as unknown as string | { message: string });
                 }
             },
+        });
+    }
+
+    public toAwait(): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            const testContext =
+                (this.context as T) ?? ({ workflowName: "UT" } as T);
+
+            this.step.activate(testContext, ...this.dependencies).subscribe({
+                complete: resolve,
+                error: reject,
+            });
         });
     }
 
@@ -55,30 +68,40 @@ export class WorkflowStepExpectations<
         this.testEventSequence(events);
     }
 
-    public toReturnAnEventAnd(
-        assertions: (event: RxEvent) => void,
-        done: jest.DoneCallback,
-        context?: T
-    ) {
-        const testContext = context ?? ({ workflowName: "UT" } as T);
+    public toReturnMatching(
+        assertions: (events: RxEvent[]) => void
+    ): Promise<void> {
+        const testContext =
+            (this.context as T) ?? ({ workflowName: "UT" } as T);
 
         const emittedEvents: RxEvent[] = [];
-        this.step.activate(testContext, ...this.dependencies).subscribe({
-            next: event => emittedEvents.push(event),
-            error: done.fail,
-            complete: () => {
-                try {
-                    expect(emittedEvents).toHaveLength(1);
-                    assertions(emittedEvents[0]);
-                    done();
-                } catch (e) {
-                    done.fail(e as unknown as string | { message: string });
-                }
-            },
+
+        return new Promise((resolve, reject) =>
+            this.step.activate(testContext, ...this.dependencies).subscribe({
+                next: event => emittedEvents.push(event),
+                error: err => reject(err),
+                complete: () => {
+                    try {
+                        assertions(emittedEvents);
+                        resolve();
+                    } catch (e) {
+                        reject(e as unknown as string | { message: string });
+                    }
+                },
+            })
+        );
+    }
+
+    public toReturnAnEventMatching(
+        assertions: (event: RxEvent) => void
+    ): Promise<void> {
+        return this.toReturnMatching(emittedEvents => {
+            expect(emittedEvents).toHaveLength(1);
+            assertions(emittedEvents[0]);
         });
     }
 
-    private testEventSequence(eventsOrPatterns: unknown[], context?: T) {
+    private testEventSequence(eventsOrPatterns: unknown[]) {
         const expectedEvents: Record<string, unknown> = {};
 
         const charCodeOfA = "a".charCodeAt(0);
@@ -92,7 +115,8 @@ export class WorkflowStepExpectations<
 
         const expectedMarbles = `(${theMarbles}|)`;
 
-        const testContext = context ?? ({ workflowName: "UT" } as T);
+        const testContext =
+            (this.context as T) ?? ({ workflowName: "UT" } as T);
 
         this.testScheduler.run(({ expectObservable }) => {
             expectObservable(
