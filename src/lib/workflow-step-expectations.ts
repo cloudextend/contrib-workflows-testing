@@ -1,8 +1,11 @@
 import { TestScheduler } from "rxjs/testing";
-
-import { busy, idle } from "@cloudextend/contrib/workflows";
 import { RxEvent } from "@cloudextend/contrib/events";
-import { WorkflowContext, WorkflowStep } from "@cloudextend/contrib/workflows";
+import {
+    busy,
+    idle,
+    WorkflowContext,
+    WorkflowStep,
+} from "@cloudextend/contrib/workflows";
 
 export class WorkflowStepExpectations<
     T extends WorkflowContext = WorkflowContext
